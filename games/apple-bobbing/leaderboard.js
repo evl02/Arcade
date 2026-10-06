@@ -241,6 +241,9 @@ const CATEGORY_COLOURS = {
   'DS8K':             '#1565c0',
 };
 
+// Expose ALL_QA on window so quickfire.js can look up facts without a circular import
+window.__allQA = ALL_QA;
+
 /* ─── Firebase ───────────────────────────────────────────────────────────── */
 let db = null;
 const COLLECTION = 'apple-bobbing-scores';

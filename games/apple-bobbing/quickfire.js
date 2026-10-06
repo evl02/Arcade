@@ -17,6 +17,68 @@ import {
   startMusic, stopMusic, toggleMute, isMuted
 } from './audio.js';
 
+// Direct map of the bundle's 12 in-game question prompts → their fact cards.
+// Keyed on the lowercased question text (PLACEHOLDER: prefix stripped).
+// This avoids any dependency on ALL_QA and matches exactly what the bundle
+// writes into #quiz-prompt.
+const BUNDLE_FACT_MAP = {
+  'which software runs on every ibm flashsystem model?': {
+    category: 'FlashSystem', title: 'One family, one software stack',
+    fact: 'Every IBM FlashSystem model runs the same Storage Virtualize software, so skills and automation carry across the whole range.',
+  },
+  'where do flashcore modules compress and encrypt data?': {
+    category: 'FlashSystem', title: 'FlashCore Modules compress inline',
+    fact: 'FlashCore Modules compress and encrypt data in hardware, so capacity savings don\'t cost host performance.',
+  },
+  'roughly how fast can flashsystem flag ransomware-style write patterns?': {
+    category: 'FlashSystem', title: 'Ransomware detection on the array',
+    fact: 'IBM has demonstrated detection of ransomware-style write patterns in under a minute using inline data statistics.',
+  },
+  'ibm storage scale presents the same data through which access methods?': {
+    category: 'Storage Scale', title: 'Global data platform',
+    fact: 'IBM Storage Scale presents file, object and HDFS access to the same data, on premises or in the cloud.',
+  },
+  'what is storage scale system 6000 designed to keep fed?': {
+    category: 'Storage Scale', title: 'Built for AI pipelines',
+    fact: 'Storage Scale System 6000 is designed to feed GPUs with hundreds of gigabytes per second per node.',
+  },
+  'what does ibm storage defender check about your backup copies?': {
+    category: 'Storage Defender', title: 'Copies you can trust',
+    fact: 'IBM Storage Defender validates backup copies and safeguarded snapshots so you know which point in time is clean.',
+  },
+  'what can an admin not do to a safeguarded copy before it expires?': {
+    category: 'Storage Defender', title: 'Safeguarded Copy',
+    fact: 'Safeguarded Copy takes immutable, logically air-gapped snapshots that admins cannot delete before their expiry.',
+  },
+  'ibm storage ceph runs on what kind of hardware?': {
+    category: 'Ceph', title: 'Software-defined and open',
+    fact: 'IBM Storage Ceph provides block, file and S3 object storage on commodity servers with an open-source core.',
+  },
+  'how do you grow capacity and performance in a ceph cluster?': {
+    category: 'Ceph', title: 'Scale out, not up',
+    fact: 'Add nodes to grow Ceph capacity and performance together, with data rebalanced automatically.',
+  },
+  'what archival life is quoted for lto tape?': {
+    category: 'Tape', title: 'Tape is still the cheapest bit',
+    fact: 'LTO tape stores cold data at a fraction of the cost per terabyte of disk, with a 30-year archival life.',
+  },
+  "why can't a network attacker reach a tape cartridge on a shelf?": {
+    category: 'Tape', title: 'Physical air gap',
+    fact: 'A tape cartridge on a shelf cannot be reached by an attacker on the network. That\'s the original air gap.',
+  },
+  'what happens when you tap the open water?': {
+    category: 'Tip', title: 'Try tapping the water',
+    fact: 'Tap the open water to make a splash and watch the apples bob.',
+  },
+};
+
+function findFactByQuestion(promptText) {
+  // If an injected question is active, its fact always takes priority.
+  if (_activeInjectedQ) return _activeInjectedQ;
+  const clean = promptText.replace(/^PLACEHOLDER:\s*/i, '').trim().toLowerCase();
+  return NEW_QUESTION_FACTS[clean] ?? BUNDLE_FACT_MAP[clean] ?? null;
+}
+
 /* ─── IBM Storage word bank ─────────────────────────────────────────────── */
 // Words with underscores are displayed with a space; accepted either way
 const WORD_BANK = [
@@ -388,6 +450,54 @@ function stopDisturbance() {
   if (disturbanceTimer) { clearTimeout(disturbanceTimer); disturbanceTimer = null; }
 }
 
+/* ─── Show our own fact overlay after a wrong answer ────────────────────── */
+// We use a completely independent overlay rather than the bundle's #fact-card,
+// because the bundle's fact card instance tracks its own `open` flag which
+// gates apple taps via L(). Bypassing show() breaks that gate.
+// Our overlay sits on top, blocks all input underneath, and dismisses cleanly.
+function showFactCardForCurrentQuestion(promptText) {
+  if (!promptText) return;
+
+  const qa = findFactByQuestion(promptText);
+  if (!qa) return;
+
+  // Don't show if already visible or if the bundle's own fact card is showing
+  if (document.getElementById('wrong-fact-overlay')) return;
+  if (!document.getElementById('fact-card')?.classList.contains('hidden')) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'wrong-fact-overlay';
+  overlay.innerHTML = `
+    <div id="wrong-fact-card">
+      <div id="wrong-fact-meta">
+        <span id="wrong-fact-category" class="pill">${qa.category}</span>
+      </div>
+      <h2 id="wrong-fact-title">${qa.title}</h2>
+      <p id="wrong-fact-body">${qa.fact}</p>
+      <button id="wrong-fact-dismiss" type="button">Keep bobbing</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  function dismiss() {
+    overlay.classList.add('wrong-fact-out');
+    overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+    setTimeout(() => overlay.remove(), 400);
+  }
+
+  document.getElementById('wrong-fact-dismiss')
+    .addEventListener('click', dismiss);
+
+  // Tap the backdrop area (outside the card) also dismisses
+  overlay.addEventListener('pointerdown', e => {
+    if (e.target === overlay) dismiss();
+  });
+
+  // Block all events from reaching the game while this is showing
+  overlay.addEventListener('pointerdown', e => e.stopPropagation(), { capture: true });
+  overlay.addEventListener('click',       e => e.stopPropagation(), { capture: true });
+}
+
 /* ─── Watch quiz answers: sounds + QF counting ──────────────────────────── */
 function watchAnswers() {
   const answersContainer = document.getElementById('quiz-answers');
@@ -431,6 +541,11 @@ function watchAnswers() {
       initAudio();
       playWrong();
       spawnBubbles();
+      // Capture the prompt text NOW (while quiz card is still visible with the question).
+      // We delay showing the fact card until after the wrong-answer highlight (1200ms),
+      // but we must read #quiz-prompt immediately before the bundle clears it at 1100ms.
+      const promptSnapshot = document.getElementById('quiz-prompt')?.textContent ?? '';
+      setTimeout(() => showFactCardForCurrentQuestion(promptSnapshot), 1200);
     }
   }).observe(answersContainer, { attributes: true, subtree: true, attributeFilter: ['class'] });
 }
@@ -662,6 +777,63 @@ const NEW_QUESTIONS = [
     correct:  1 },
 ];
 
+// Fact data for each injected question — keyed by question text (lowercase).
+// Used by showFactCardForCurrentQuestion to show the right fact after wrong answer,
+// and by watchFactCard to replace the bundle's fact card after correct answer.
+const NEW_QUESTION_FACTS = {
+  'what do ibm storage partitions let you do during a hardware refresh?': {
+    category: 'FlashSystem', title: 'Swap sides without an outage',
+    fact: 'Storage Partitions package everything a host needs (front end config and back end data) into a logical group that can be migrated non-disruptively for a hardware refresh or workload rebalance.',
+  },
+  'which set of protocols can storage scale serve concurrently from one filesystem?': {
+    category: 'Storage Scale', title: 'One copy, every protocol',
+    fact: 'Storage Scale offers concurrent multi-protocol access (POSIX, NFS, SMB and S3) to the same data, not a separate copy per protocol.',
+  },
+  "how long is the free trial of storage defender's data resiliency service?": {
+    category: 'Storage Defender', title: 'Try before you commit',
+    fact: "IBM offers Storage Defender's Data Resiliency Service with a free 60-day trial for evaluation.",
+  },
+  'which ibm platform does storage ceph underpin as the object storage layer in a data lakehouse?': {
+    category: 'Ceph', title: 'The lakehouse foundation',
+    fact: 'IBM Storage Ceph provides the S3 object foundation under a data lakehouse built on watsonx.data, for hybrid multi-cloud analytics.',
+  },
+  'which access methods does ibm storage ceph support alongside s3 object?': {
+    category: 'Ceph', title: 'Beyond S3: unified Ceph',
+    fact: 'Beyond S3, Ceph is unified storage exposing block (RBD), file, NFS and NVMe-oF.',
+  },
+  'the hci form of fusion runs on ibm storage scale ece. what backs the software-defined form?': {
+    category: 'Fusion', title: 'HCI vs software-defined',
+    fact: 'The HCI System uses IBM Storage Scale Erasure Coding Edition, whilst the software-defined version uses Red Hat OpenShift Data Foundation (ODF).',
+  },
+  'ibm enterprise tape is quoted at a bit error rate of about which figure?': {
+    category: 'Tape', title: 'Near-perfect bit error rate',
+    fact: 'IBM tape runs at roughly 1 error in 10²¹ bits — about one error per exabyte, far better than enterprise HDD at around 10¹⁵.',
+  },
+  'what does ltfs let you do with a tape cartridge?': {
+    category: 'Tape', title: 'Tape as a file system',
+    fact: 'IBM tape supports LTFS (the Linear Tape File System), an open data format that lets tape be read like a file system.',
+  },
+  'what is the main benefit of ts7700 transparent cloud tiering for an ibm z shop?': {
+    category: 'VTS', title: 'TS7700 Transparent Cloud Tiering',
+    fact: 'Transparent Cloud Tiering offloads data movement from IBM Z, reducing Z CPU and I/O load while sending compressed, encrypted data to tape or cloud.',
+  },
+  'which ts7700 control prevents a single administrator from weakening data protection?': {
+    category: 'VTS', title: 'Dual control cyber resilience',
+    fact: 'TS7700 cyber resilience bundles several controls, but dual control on sensitive settings stops any single admin acting alone.',
+  },
+  "at 1,000+ miles, ds8900f's quoted disaster recovery objectives are approximately:": {
+    category: 'DS8K', title: 'Disaster recovery at 1,000 miles',
+    fact: 'DS8900F delivers roughly a 2-second RPO and under 60-second RTO at over 1,000 miles — cited as 15× faster than the industry.',
+  },
+  'ds8900f synergy features reach ibm z customers ahead of competitors chiefly because:': {
+    category: 'DS8K', title: 'Co-designed with IBM Z',
+    fact: 'Every DS8900F synergy feature is designed, developed and tested jointly with the IBM Z team — which is why they arrive months to years ahead of the competition.',
+  },
+};
+
+// Track the currently injected question (null = bundle's own question showing).
+let _activeInjectedQ = null;
+
 // Pool state: shuffled indices into NEW_QUESTIONS, drained one per injection.
 let _nqPool = [];
 
@@ -697,6 +869,9 @@ function watchQuizCard() {
       return;
     }
     wasHidden = false;
+
+    // Clear any previous injected question state
+    _activeInjectedQ = null;
 
     // ── 50/50 decision: inject a new question or leave the bundle question. ──
     // Always try injection if there are questions left in the pool; the coin
@@ -740,7 +915,36 @@ function watchQuizCard() {
     promptEl.textContent   = newQ.question;
     if (categoryEl) categoryEl.textContent = newQ.category;
 
+    // Record which injected question is now showing so fact cards match.
+    const key = newQ.question.trim().toLowerCase();
+    _activeInjectedQ = NEW_QUESTION_FACTS[key] ?? null;
+
   }).observe(quizCard, { attributes: true, attributeFilter: ['class'] });
+}
+
+/* ─── Replace bundle fact card content when an injected question was answered ── */
+// When the player answers correctly, the bundle shows its own #fact-card with
+// the fact linked to that apple's factId — which won't match the injected question.
+// We observe #fact-card becoming visible and replace title/body/category if needed.
+function watchFactCard() {
+  const factCard = document.getElementById('fact-card');
+  if (!factCard) return;
+
+  new MutationObserver(() => {
+    if (factCard.classList.contains('hidden')) return;  // card just hid — ignore
+    if (!_activeInjectedQ) return;                      // bundle question — leave as-is
+
+    const qa = _activeInjectedQ;
+    const titleEl    = document.getElementById('fact-title');
+    const bodyEl     = document.getElementById('fact-body');
+    const categoryEl = document.getElementById('fact-category');
+
+    if (titleEl)    titleEl.textContent    = qa.title;
+    if (bodyEl)     bodyEl.textContent     = qa.fact;
+    if (categoryEl) categoryEl.textContent = qa.category;
+
+    _activeInjectedQ = null; // consumed — clear so it doesn't apply again
+  }).observe(factCard, { attributes: true, attributeFilter: ['class'] });
 }
 
 /* ─── Boot ───────────────────────────────────────────────────────────────── */
@@ -756,4 +960,5 @@ document.addEventListener('DOMContentLoaded', () => {
   watchPlaceholderText();
   watchFactsLeft();
   watchQuizCard();       // 50/50 new-question injection after bundle renders
+  watchFactCard();       // replace fact card content for injected questions
 });
