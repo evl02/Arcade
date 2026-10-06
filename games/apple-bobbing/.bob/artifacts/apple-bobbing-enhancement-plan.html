@@ -1,0 +1,430 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Apple Bobbing — Enhancement Plan</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #1f2328;
+    background: #ffffff;
+    padding: 32px 16px 48px;
+  }
+  .page { max-width: 760px; margin: 0 auto; }
+
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: #57606a; font-size: 13px; margin-bottom: 32px; }
+
+  /* ---- Architecture callout ---- */
+  .arch-box {
+    background: #fffbeb;
+    border: 1px solid #fbbf24;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 32px;
+  }
+  .arch-box strong { color: #92400e; }
+  .arch-box p { font-size: 13px; color: #78350f; margin-top: 6px; line-height: 1.55; }
+
+  /* ---- Clarification box ---- */
+  .clarity-box {
+    background: #f0f4ff;
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 32px;
+  }
+  .clarity-box h3 { font-size: 14px; font-weight: 700; color: #1e3a8a; margin-bottom: 10px; }
+  .clarity-box ol { padding-left: 20px; }
+  .clarity-box li { font-size: 13px; color: #1e3a8a; margin-bottom: 8px; }
+  .clarity-box li span { font-weight: 600; }
+
+  /* ---- Phase cards ---- */
+  .phase {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    background: #f7f8fa;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .phase-badge {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 3px 9px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+  .badge-1 { background: #dbeafe; color: #1d4ed8; }
+  .badge-2 { background: #dcfce7; color: #15803d; }
+  .badge-3 { background: #fce7f3; color: #9d174d; }
+  .badge-4 { background: #fef3c7; color: #92400e; }
+
+  .phase-title { font-size: 15px; font-weight: 700; }
+  .phase-meta { margin-left: auto; font-size: 12px; color: #57606a; white-space: nowrap; }
+
+  .phase-body { padding: 16px 18px; }
+  .phase-desc { font-size: 13px; color: #57606a; margin-bottom: 14px; }
+
+  /* Feature rows */
+  .feature { margin-bottom: 18px; }
+  .feature:last-child { margin-bottom: 0; }
+  .feature-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .feature-tag {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 7px;
+    border-radius: 20px;
+    background: #f7f8fa;
+    border: 1px solid #e5e7eb;
+    color: #57606a;
+  }
+  .feature ul { padding-left: 20px; }
+  .feature li { font-size: 13px; margin-bottom: 3px; color: #1f2328; }
+
+  /* Divider */
+  .divider { border: none; border-top: 1px solid #e5e7eb; margin: 28px 0; }
+
+  /* Dependency table */
+  .dep-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .dep-table th {
+    text-align: left;
+    background: #f7f8fa;
+    padding: 7px 10px;
+    border: 1px solid #e5e7eb;
+    font-weight: 600;
+    color: #57606a;
+  }
+  .dep-table td {
+    padding: 7px 10px;
+    border: 1px solid #e5e7eb;
+    vertical-align: top;
+  }
+  .dep-table tr:nth-child(even) td { background: #f7f8fa; }
+
+  /* Risk pill */
+  .risk { display: inline-block; padding: 1px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .risk-high { background: #fee2e2; color: #991b1b; }
+  .risk-med { background: #fef3c7; color: #92400e; }
+  .risk-low { background: #dcfce7; color: #15803d; }
+
+  /* Footer */
+  footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid #e5e7eb;
+    text-align: center;
+    font-size: 12px;
+    color: #57606a;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>🍎 Apple Bobbing — Enhancement Plan</h1>
+  <p class="subtitle">4-phase implementation plan · Sound, Leaderboard &amp; Quick Fire Round</p>
+
+  
+  <div class="arch-box">
+    <strong>⚠ Important Architectural Note</strong>
+    <p>The entire game logic is compiled into a single minified bundle (<code>assets/index-DbgJ57FT.js</code>). The original source code is not present in this repository. All new features <strong>must be implemented as an overlay layer</strong> written in a separate script file, communicating with the existing game via DOM events and DOM observation (e.g. MutationObserver on score elements, class changes on the quiz card). The bundle itself will not be modified. This is fully achievable but is the key architectural constraint all phases are designed around.</p>
+  </div>
+
+  
+  <div class="clarity-box">
+    <h3>🙋 Requests for Clarity Before Implementation</h3>
+    <ol>
+      <li><span>Leaderboard persistence:</span> Should the leaderboard persist across browser sessions (using <code>localStorage</code>), or is it acceptable for it to reset when the tab is closed? And should it be purely local (one device only) or shared across multiple players on different machines?</li>
+      <li><span>Quick Fire Round trigger:</span> When exactly does the Quick Fire Round start — automatically after all 12 regular apples are answered, at a random point mid-game, or triggered manually by a button?</li>
+      <li><span>Quick Fire word list:</span> You mention "a storage word needs to be unscrambled." Should I use IBM storage product/feature names as the word bank (e.g. FLASHSYSTEM, DEFENDER, CEPH), or do you have a specific list of words you'd like to provide?</li>
+      <li><span>Quick Fire point value:</span> What is the base point value for the Quick Fire round (before the double/triple multipliers)? For example, is it the same as a regular correct answer, a flat 100 pts, or something else?</li>
+      <li><span>Multiple Quick Fire rounds:</span> Can the Quick Fire Round occur more than once per game session, or is it a single one-shot round?</li>
+      <li><span>Audio files:</span> Do you have specific audio files (mp3/ogg) you'd like to use for the soundtrack and sound effects, or should I generate the correct/wrong tones programmatically using the Web Audio API (no files needed)?</li>
+    </ol>
+  </div>
+
+  
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge badge-1">Phase 1</span>
+      <span class="phase-title">Audio Foundation — Background Soundtrack &amp; Sound Effects</span>
+      <span class="phase-meta">~2–4 hrs · No dependencies</span>
+    </div>
+    <div class="phase-body">
+      <p class="phase-desc">Introduce all audio using the Web Audio API. No external audio files are required — all three sounds are synthesised programmatically (a looping Halloween ambient drone for the soundtrack; a cheerful chime for correct answers; a buzzer/thud for wrong answers). This keeps the project self-contained with zero new asset downloads.</p>
+
+      <div class="feature">
+        <div class="feature-title">1a. Audio Engine Module <span class="feature-tag">New file: audio.js</span></div>
+        <ul>
+          <li>Create <code>audio.js</code> as a plain ES module injected via a <code>&lt;script type="module"&gt;</code> tag in <code>index.html</code>.</li>
+          <li>Initialise a single shared <code>AudioContext</code> on the first user interaction (tap/click) to satisfy browser autoplay policy.</li>
+          <li>Export three functions: <code>playCorrect()</code>, <code>playWrong()</code>, <code>startMusic()</code> / <code>stopMusic()</code>.</li>
+          <li>All sounds use <code>OscillatorNode</code>, <code>GainNode</code>, and optionally <code>BiquadFilterNode</code> — no file loading required.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">1b. Halloween Background Soundtrack <span class="feature-tag">Synthesised</span></div>
+        <ul>
+          <li>A slowly evolving low-frequency drone (2–3 oscillators detuned slightly, filtered through a low-pass) creates ambient Halloween atmosphere.</li>
+          <li>Volume set to roughly 15% master gain — present but never intrusive.</li>
+          <li>Starts when the first apple is tapped (game begins), pauses on game-over, resumes on replay.</li>
+          <li>A muted 🔊/🔇 toggle button is added to the HUD so players can silence it easily.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">1c. Correct Answer Sound <span class="feature-tag">Synthesised chime</span></div>
+        <ul>
+          <li>A short ascending two-note chime (e.g. C5 → E5, ~250ms each, sine wave with quick decay envelope).</li>
+          <li>Triggered by detecting the <code>correct</code> CSS class applied to an answer button by the existing game engine (via <code>MutationObserver</code> on <code>#quiz-answers</code>).</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">1d. Wrong Answer Sound <span class="feature-tag">Synthesised buzz</span></div>
+        <ul>
+          <li>A low descending buzz (sawtooth wave, ~300ms, pitch drops from 220Hz to 80Hz) — unmistakable "wrong" feedback.</li>
+          <li>Triggered by detecting the <code>wrong</code> (or equivalent) CSS class on an answer button via the same <code>MutationObserver</code>.</li>
+          <li><strong>Clarification needed:</strong> The exact class name the bundle applies to wrong answers must be confirmed by inspecting the CSS file or live browser DevTools before implementing.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge badge-2">Phase 2</span>
+      <span class="phase-title">Leaderboard — Name Entry &amp; Ranked High Scores</span>
+      <span class="phase-meta">~3–5 hrs · Depends on: Phase 1 (AudioContext exists for fanfare)</span>
+    </div>
+    <div class="phase-body">
+      <p class="phase-desc">A leaderboard overlay is shown on the game-over screen. The player enters their name, their score is saved to <code>localStorage</code> (persistent across sessions, single-device by default), and the top 10 scores are displayed ranked by points. A brief fanfare sound plays when a new high score is set.</p>
+
+      <div class="feature">
+        <div class="feature-title">2a. Score Capture <span class="feature-tag">DOM Observer</span></div>
+        <ul>
+          <li>When the <code>#game-over-card</code> element becomes visible (loses the <code>hidden</code> class), read the final score from <code>#game-over-score</code> inner text.</li>
+          <li>This requires no modification to the bundle — the existing DOM element is the source of truth.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">2b. Name Entry UI <span class="feature-tag">New HTML injected into game-over-card</span></div>
+        <ul>
+          <li>Inject a text input + "Save Score" button into <code>#game-over-card</code> when game-over is detected.</li>
+          <li>Input is pre-focused for keyboard users; a character limit of 20 is enforced.</li>
+          <li>If the player has entered their name before, pre-fill from <code>localStorage</code>.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">2c. Leaderboard Storage &amp; Display <span class="feature-tag">localStorage</span></div>
+        <ul>
+          <li>Scores stored in <code>localStorage</code> as a JSON array: <code>[{name, score, date}]</code>, capped at 20 entries, sorted descending by score.</li>
+          <li>Top 10 rendered as a styled ordered list replacing / augmenting the existing <code>#game-over-scores</code> element.</li>
+          <li>The current player's row is highlighted so they can see where they rank.</li>
+          <li>A "Clear Board" button available for resetting (behind a confirmation step).</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">2d. New High Score Fanfare <span class="feature-tag">Audio</span></div>
+        <ul>
+          <li>If the submitted score ranks #1 on the board, a short ascending fanfare (5-note chime) plays using the Phase 1 audio engine.</li>
+          <li>A "🏆 New High Score!" banner briefly appears above the leaderboard.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge badge-3">Phase 3</span>
+      <span class="phase-title">Quick Fire Round — Word Unscramble Under 60 Seconds</span>
+      <span class="phase-meta">~5–8 hrs · Most complex phase · Depends on: Phase 1 (audio)</span>
+    </div>
+    <div class="phase-body">
+      <p class="phase-desc">A completely new game mode injected as a full-screen overlay on top of the 3D scene. The cauldron background visually shifts orange. A scrambled IBM storage word is displayed; the player types or taps letters to unscramble it. Triple points for ≤10 s, double for ≤20 s, standard for ≤60 s. Fails if time runs out. <strong>This phase has the most open questions (see Clarifications box above).</strong></p>
+
+      <div class="feature">
+        <div class="feature-title">3a. Orange Visual Shift <span class="feature-tag">CSS overlay</span></div>
+        <ul>
+          <li>A full-viewport <code>&lt;div id="quickfire-overlay"&gt;</code> with a semi-transparent orange tint (<code>rgba(255, 100, 0, 0.18)</code>) placed above the canvas but below the HUD.</li>
+          <li>The existing <code>#hud</code> background and counter elements are temporarily hidden so the Quick Fire card takes full focus.</li>
+          <li>An orange pulsing border or glow effect on the card reinforces urgency.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">3b. Word Bank &amp; Scrambler <span class="feature-tag">Data</span></div>
+        <ul>
+          <li>A curated word list of IBM storage product / feature names (e.g. FLASHSYSTEM, DEFENDER, STORAGEONE, CEPH, VERSASTACK, SPECTRUM, SAFEGUARDED). <em>Final list subject to your approval — see Clarification #3.</em></li>
+          <li>Words are scrambled using a Fisher-Yates shuffle of the letters. The scrambler guarantees the scrambled form never matches the original word.</li>
+          <li>Each word is used at most once per session.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">3c. Unscramble UI <span class="feature-tag">New HTML card</span></div>
+        <ul>
+          <li>A centred card shows: "QUICK FIRE!" heading, the scrambled word in large spaced letters, a 60-second countdown timer (colour shifts red below 10 s), and a text input for the player's answer.</li>
+          <li>On mobile: a row of tappable scrambled letter tiles are rendered for drag-and-rearrange interaction (a simpler text-input fallback is always available).</li>
+          <li>On correct submission, the card shows the answer + points earned with a 1.5 s celebration pause before dismissing.</li>
+          <li>On timeout/wrong, a "Time's up!" message is shown, the round ends with 0 pts.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">3d. Points Multiplier Logic <span class="feature-tag">Game logic</span></div>
+        <ul>
+          <li><strong>≤10 s remaining used:</strong> 3× base points</li>
+          <li><strong>≤20 s remaining used:</strong> 2× base points</li>
+          <li><strong>≤60 s remaining used:</strong> 1× base points</li>
+          <li>Base point value to be confirmed (see Clarification #4). Tentative default: 150 pts base → up to 450 pts.</li>
+          <li>Points are added by directly mutating <code>#score</code> inner text and the same score variable used by the leaderboard, since the bundle's internal score state cannot be patched.</li>
+          <li><strong>Risk:</strong> The bundle may overwrite the <code>#score</code> DOM element on its own tick. A strategy of storing the QF points separately and adding them at the moment of game-over score capture is the safest approach.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">3e. Round Trigger &amp; Integration <span class="feature-tag">Lifecycle</span></div>
+        <ul>
+          <li>Trigger point determined by Clarification #2. Tentative default: automatically triggered when the last apple (12th) is answered.</li>
+          <li>The existing game is paused visually (pointer events disabled on the canvas) during the Quick Fire round.</li>
+          <li>After completion or timeout, normal game-over flow continues.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  
+  <div class="phase">
+    <div class="phase-header">
+      <span class="phase-badge badge-4">Phase 4</span>
+      <span class="phase-title">Polish, Integration Testing &amp; QA</span>
+      <span class="phase-meta">~2–3 hrs · Depends on: Phases 1–3</span>
+    </div>
+    <div class="phase-body">
+      <p class="phase-desc">End-to-end testing of all features together, mobile/touch QA, edge-case handling, and final cosmetic adjustments.</p>
+
+      <div class="feature">
+        <div class="feature-title">4a. Mobile &amp; Touch Testing</div>
+        <ul>
+          <li>Verify audio starts correctly on iOS/Android (requires user gesture; autoplay rules are stricter on Safari).</li>
+          <li>Test leaderboard name input on mobile soft keyboard — ensure it doesn't obscure the UI.</li>
+          <li>Test Quick Fire letter-tile drag interface on small screens.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">4b. Edge Cases</div>
+        <ul>
+          <li>Player submits no name → score saved as "Anonymous".</li>
+          <li>Player wins Quick Fire with exactly 10 s or 20 s elapsed → boundary conditions for multiplier.</li>
+          <li>Scrambled word is accidentally already correct on first shuffle → re-shuffle until distinct.</li>
+          <li>Audio context suspended mid-game (tab backgrounded) → graceful resume on refocus.</li>
+        </ul>
+      </div>
+
+      <div class="feature">
+        <div class="feature-title">4c. Accessibility</div>
+        <ul>
+          <li>All new interactive elements have <code>aria-label</code> attributes.</li>
+          <li>Correct/wrong audio feedback does not replace visual feedback (both are present).</li>
+          <li>Mute button state is preserved in <code>localStorage</code> across sessions.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider" />
+
+  
+  <h2 style="font-size:15px;font-weight:700;margin-bottom:12px">Dependency &amp; Risk Summary</h2>
+  <table class="dep-table">
+    <thead>
+      <tr>
+        <th>Phase</th>
+        <th>Depends On</th>
+        <th>Key Risk</th>
+        <th>Risk Level</th>
+        <th>Mitigation</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1 — Audio</strong></td>
+        <td>None</td>
+        <td>CSS class names for correct/wrong not confirmed without running the game in DevTools</td>
+        <td><span class="risk risk-med">Medium</span></td>
+        <td>Inspect live DOM at quiz answer time; adjust class names before wiring observer</td>
+      </tr>
+      <tr>
+        <td><strong>2 — Leaderboard</strong></td>
+        <td>Phase 1 (fanfare)</td>
+        <td>Game-over score DOM element overwritten by bundle after overlay fires</td>
+        <td><span class="risk risk-low">Low</span></td>
+        <td>Read score on <code>hidden</code>→visible transition; DOM value is stable at that moment</td>
+      </tr>
+      <tr>
+        <td><strong>3 — Quick Fire</strong></td>
+        <td>Phase 1 (audio)</td>
+        <td>Score injection may conflict with bundle's internal score state; bundle may ignore or overwrite DOM score</td>
+        <td><span class="risk risk-high">High</span></td>
+        <td>Track QF bonus separately; add it only at game-over capture before leaderboard save</td>
+      </tr>
+      <tr>
+        <td><strong>4 — Polish</strong></td>
+        <td>Phases 1–3</td>
+        <td>iOS Safari AudioContext autoplay restrictions</td>
+        <td><span class="risk risk-med">Medium</span></td>
+        <td>Always resume AudioContext inside the first user-gesture handler</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <hr class="divider" />
+
+  
+  <h2 style="font-size:15px;font-weight:700;margin-bottom:12px">Files Created / Modified</h2>
+  <table class="dep-table">
+    <thead>
+      <tr><th>File</th><th>Action</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>audio.js</code></td><td>Create</td><td>All Web Audio synthesis: soundtrack, correct/wrong SFX, fanfare</td></tr>
+      <tr><td><code>leaderboard.js</code></td><td>Create</td><td>localStorage CRUD, score capture, leaderboard DOM render</td></tr>
+      <tr><td><code>quickfire.js</code></td><td>Create</td><td>Quick Fire round: word bank, scrambler, timer, scoring, UI</td></tr>
+      <tr><td><code>overlay.css</code></td><td>Create</td><td>Styles for leaderboard, Quick Fire card, mute button, orange tint</td></tr>
+      <tr><td><code>index.html</code></td><td>Modify</td><td>Add <code>&lt;link&gt;</code> for overlay.css; add three <code>&lt;script type="module"&gt;</code> tags; add mute toggle button to HUD</td></tr>
+    </tbody>
+  </table>
+
+  <footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>

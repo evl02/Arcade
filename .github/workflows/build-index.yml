@@ -1,0 +1,48 @@
+name: Build index
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'games/**'
+      - 'scripts/build_index.py'
+      - '.github/workflows/build-index.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-index
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Test the builder
+        run: python3 -m unittest discover -s scripts -t scripts
+
+      - name: Rebuild the games grid
+        run: python3 scripts/build_index.py
+
+      - name: Commit the regenerated index
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          if git diff --quiet -- index.html; then
+            echo "index.html already current"
+          else
+            git add index.html
+            git commit -m "build: regenerate index.html [skip ci]"
+            git push
+          fi
