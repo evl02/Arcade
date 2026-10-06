@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Apple Bobbing</title>
+    <meta name="description" content="Bob for apples in a witch's cauldron of real-time simulated water. Every apple you catch surfaces an IBM storage fact.">
+    <meta name="keywords" content="arcade, storage, IBM, halloween, educational, webgl">
+    <meta name="added" content="2026-09-03">
+    <meta name="game-accent" content="#ff8a2a">
+    <meta name="game-controls" content="Tap an apple, then pick the right answer before the timer runs out. Drag on the water to stir">
+    <script type="module" crossorigin src="./assets/index-DbgJ57FT.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DvW9oRQ7.css">
+    <link rel="stylesheet" href="./overlay.css">
+
+    <!--
+      ═══════════════════════════════════════════════════════════════════
+      FIREBASE CONFIGURATION — required for the shared leaderboard.
+
+      1. Go to https://console.firebase.google.com/
+      2. Create a project (free Spark plan is fine)
+      3. Add a Web App → copy the firebaseConfig object values below
+      4. In Firestore Database → Rules, set:
+            allow read, write: if true;   ← for open arcade use
+         (or add rate-limiting rules for production)
+      ═══════════════════════════════════════════════════════════════════
+    -->
+    <script>
+      window.FIREBASE_CONFIG = {
+        apiKey:            "AIzaSyCTm7QbwAQOISxsXaojUSY0K2cBJQY85FU",
+        authDomain:        "applebobbing-4c406.firebaseapp.com",
+        projectId:         "applebobbing-4c406",
+        storageBucket:     "applebobbing-4c406.firebasestorage.app",
+        messagingSenderId: "940522964879",
+        appId:             "1:940522964879:web:ebb58906459295ef76edfa"
+      };
+    </script>
+
+    <script type="module" src="./splash.js"></script>
+    <script type="module" src="./quickfire.js"></script>
+    <script type="module" src="./leaderboard.js"></script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <div id="run-clock">--</div>
+      <div id="counter">
+        <div id="pumpkin"><span id="caught-count">0</span></div>
+        <div>
+          <div id="counter-label">apples bobbed</div>
+          <div id="counter-sub"><span id="facts-left">12</span> facts still lurking</div>
+          <div id="score-line"><span id="score">0</span> pts</div>
+        </div>
+      </div>
+      <div id="attract" class="hidden">
+        <div id="attract-copy">
+          <div id="attract-kicker">The IBM Storage</div>
+          <h1 id="attract-title">Apple Bobbing</h1>
+          <p id="attract-blurb">Twelve apples, twelve facts about FlashSystem, Storage Scale, Defender, Ceph and tape. No wet hair required.</p>
+        </div>
+        <div id="attract-cta">Tap an apple to begin</div>
+      </div>
+      <div id="fps" class="hidden"></div>
+      <a id="arcade-link" href="../../">&larr; Arcade</a>
+      <button id="mute-btn" aria-label="Toggle music and sound effects" title="Toggle sound">🔊</button>
+    </div>
+    <div id="backdrop" class="hidden"></div>
+    <section id="quiz-card" class="sheet hidden" aria-live="polite">
+      <div id="quiz-timer"><div id="quiz-bar"></div><span id="quiz-seconds">12</span></div>
+      <div id="quiz-meta"><span id="quiz-category" class="pill"></span><span id="quiz-kicker">Answer right to bob the apple</span></div>
+      <h2 id="quiz-prompt"></h2>
+      <div id="quiz-answers">
+        <button class="answer" type="button" data-index="0"></button>
+        <button class="answer" type="button" data-index="1"></button>
+        <button class="answer" type="button" data-index="2"></button>
+        <button class="answer" type="button" data-index="3"></button>
+      </div>
+    </section>
+    <section id="fact-card" class="sheet hidden" aria-live="polite">
+      <div id="fact-meta">
+        <span id="fact-category" class="pill"></span>
+        <span id="fact-progress"></span>
+      </div>
+      <h2 id="fact-title"></h2>
+      <p id="fact-body"></p>
+      <button id="fact-dismiss" type="button">Keep bobbing</button>
+    </section>
+    <section id="game-over-card" class="sheet hidden" aria-live="polite">
+      <p id="game-over-reason"></p>
+      <div id="game-over-score-line">Score: <span id="game-over-score">0</span></div>
+      <ol id="game-over-scores"></ol>
+      <p id="game-over-prompt">Tap anywhere to play again</p>
+    </section>
+    <div id="error" class="hidden"></div>
+  </body>
+</html>
